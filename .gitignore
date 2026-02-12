@@ -63,4 +63,5 @@ crashlytics-build.properties
 
 # Unity local user settings
 UserSettings/
+.vs/
 .vscode/
