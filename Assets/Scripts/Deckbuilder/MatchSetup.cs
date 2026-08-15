@@ -7,6 +7,11 @@ public class MatchSetup : MonoBehaviour
     [SerializeField] private int startingHealth = 50;
     [SerializeField] private int startingEnergy = 3;
 
+    // Deck power curve: 5 bands, weakest -> strongest, copy count strictly
+    // tapering (6/5/4/3/2 = 20). This is an implicit "common to legendary"
+    // rarity expressed purely through how often a card shows up in a hand,
+    // without a literal rarity label anywhere in the data.
+
     private void Start()
     {
         Player alice = new Player("Alice (White Mage)", startingHealth, startingEnergy, new Deck(BuildWhiteMageDeck()));
@@ -27,27 +32,24 @@ public class MatchSetup : MonoBehaviour
     {
         List<CardData> deck = new List<CardData>();
 
-        for (int i = 0; i < 4; i++)
-        {
-            deck.Add(CreateCard("Cure", 1, TargetType.SingleAlly, new HealEffect { Amount = 10 }));
-        }
+        // Band 1 (6)
+        AddCopies(deck, 3, () => CreateCard("Cure", 1, TargetType.SingleAlly, new HealEffect { Amount = 10 }));
+        AddCopies(deck, 3, () => CreateCard("Aero", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 6 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateStatusCard("Regen", 2, TargetType.SingleAlly, StatusEffectType.Regen, "Regen", duration: 3, magnitude: 4));
-        }
+        // Band 2 (5)
+        AddCopies(deck, 3, () => CreateStatusCard("Regen", 2, TargetType.SingleAlly, StatusEffectType.Regen, "Regen", duration: 3, magnitude: 4));
+        AddCopies(deck, 2, () => CreateStatusCard("Protect", 2, TargetType.SingleAlly, StatusEffectType.Protect, "Protect", duration: 3, magnitude: 3));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateStatusCard("Protect", 2, TargetType.SingleAlly, StatusEffectType.Protect, "Protect", duration: 3, magnitude: 3));
-        }
-
+        // Band 3 (4)
         // Large duration: Shell is removed when its absorb pool is depleted (see Player.AbsorbWithShell), not by turn countdown.
-        deck.Add(CreateStatusCard("Shell", 2, TargetType.SingleAlly, StatusEffectType.Shell, "Shell", duration: 99, magnitude: 15));
+        AddCopies(deck, 4, () => CreateStatusCard("Shell", 2, TargetType.SingleAlly, StatusEffectType.Shell, "Shell", duration: 99, magnitude: 15));
 
-        deck.Add(CreateCard("Holy", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 20 }));
-        deck.Add(CreateCard("Full-Heal", 3, TargetType.SingleAlly, new HealEffect { Amount = 999 }));
-        deck.Add(CreateCard("Life", 3, TargetType.DeadAlly, new HealEffect { Amount = 20 }));
+        // Band 4 (3)
+        AddCopies(deck, 3, () => CreateCard("Holy", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 20 }));
+
+        // Band 5 (2)
+        AddCopies(deck, 1, () => CreateCard("Full-Heal", 3, TargetType.SingleAlly, new HealEffect { Amount = 999 }));
+        AddCopies(deck, 1, () => CreateCard("Life", 3, TargetType.DeadAlly, new HealEffect { Amount = 20 }));
 
         return deck;
     }
@@ -56,28 +58,22 @@ public class MatchSetup : MonoBehaviour
     {
         List<CardData> deck = new List<CardData>();
 
-        for (int i = 0; i < 4; i++)
-        {
-            deck.Add(CreateCard("Fire", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 9 }));
-        }
+        // Band 1 (6)
+        AddCopies(deck, 3, () => CreateCard("Fire", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 9 }));
+        AddCopies(deck, 3, () => CreateCard("Ice", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Ice", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
-        }
+        // Band 2 (5)
+        AddCopies(deck, 3, () => CreateStatusCard("Slow", 1, TargetType.SingleEnemy, StatusEffectType.Slow, "Slow", duration: 2, magnitude: 2));
+        AddCopies(deck, 2, () => CreateCard("Water", 2, TargetType.AllEnemies, new DamageEffect { Amount = 6 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateStatusCard("Slow", 1, TargetType.SingleEnemy, StatusEffectType.Slow, "Slow", duration: 2, magnitude: 2));
-        }
+        // Band 3 (4)
+        AddCopies(deck, 4, () => CreateCard("Thunder", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 14 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Thunder", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 14 }));
-        }
+        // Band 4 (3)
+        AddCopies(deck, 3, () => CreateCard("Flare", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 22 }));
 
-        deck.Add(CreateCard("Water", 2, TargetType.AllEnemies, new DamageEffect { Amount = 6 }));
-        deck.Add(CreateCard("Comet", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 26 }));
+        // Band 5 (2)
+        AddCopies(deck, 2, () => CreateCard("Comet", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 26 }));
 
         return deck;
     }
@@ -86,27 +82,24 @@ public class MatchSetup : MonoBehaviour
     {
         List<CardData> deck = new List<CardData>();
 
-        for (int i = 0; i < 3; i++)
-        {
-            deck.Add(CreateCard("Swordplay", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
-        }
+        // Band 1 (6) — Fire and Cure are the literal shared White/Black Mage spells,
+        // reflecting Red Mage's hybrid access to basic white and black magic.
+        AddCopies(deck, 2, () => CreateCard("Swordplay", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
+        AddCopies(deck, 2, () => CreateCard("Fire", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 9 }));
+        AddCopies(deck, 2, () => CreateCard("Cure", 1, TargetType.SingleAlly, new HealEffect { Amount = 10 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Firebolt", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 8 }));
-        }
+        // Band 2 (5)
+        AddCopies(deck, 2, () => CreateStatusCard("Haste", 2, TargetType.Self, StatusEffectType.Haste, "Haste", duration: 2, magnitude: 1));
+        AddCopies(deck, 3, () => CreateCard("Dia", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 13 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Cure", 1, TargetType.SingleAlly, new HealEffect { Amount = 6 }));
-        }
+        // Band 3 (4)
+        AddCopies(deck, 4, () => CreateCard("Blizzara", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 14 }));
 
-        deck.Add(CreateStatusCard("Haste", 2, TargetType.Self, StatusEffectType.Haste, "Haste", duration: 2, magnitude: 1));
+        // Band 4 (3)
+        AddCopies(deck, 3, () => CreateCard("Cura", 2, TargetType.SingleAlly, new HealEffect { Amount = 18 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Dia", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 13 }));
-        }
+        // Band 5 (2)
+        AddCopies(deck, 2, () => CreateCard("Grand Cross", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 24 }));
 
         return deck;
     }
@@ -115,25 +108,22 @@ public class MatchSetup : MonoBehaviour
     {
         List<CardData> deck = new List<CardData>();
 
-        for (int i = 0; i < 4; i++)
-        {
-            deck.Add(CreateCard("Quick Strike", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 6 }));
-        }
+        // Band 1 (6)
+        AddCopies(deck, 3, () => CreateCard("Quick Strike", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 6 }));
+        AddCopies(deck, 3, () => CreateCard("Mug", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 5 }, new DrainEnergyEffect { Amount = 1 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Mug", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 5 }, new DrainEnergyEffect { Amount = 1 }));
-        }
+        // Band 2 (5)
+        AddCopies(deck, 2, () => CreateCard("Trick", 1, TargetType.SingleEnemy, new DrainEnergyEffect { Amount = 2 }));
+        AddCopies(deck, 3, () => CreateCard("Sneak Attack", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 9 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Trick", 1, TargetType.SingleEnemy, new DrainEnergyEffect { Amount = 2 }));
-        }
+        // Band 3 (4)
+        AddCopies(deck, 4, () => CreateCard("Backstab", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 16 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Backstab", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 16 }));
-        }
+        // Band 4 (3)
+        AddCopies(deck, 3, () => CreateCard("Assassinate", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 20 }));
+
+        // Band 5 (2)
+        AddCopies(deck, 2, () => CreateCard("Vendetta", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 30 }));
 
         return deck;
     }
@@ -142,25 +132,22 @@ public class MatchSetup : MonoBehaviour
     {
         List<CardData> deck = new List<CardData>();
 
-        for (int i = 0; i < 4; i++)
-        {
-            deck.Add(CreateCard("Punch", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
-        }
+        // Band 1 (6)
+        AddCopies(deck, 3, () => CreateCard("Punch", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
+        AddCopies(deck, 3, () => CreateStatusCard("Meditate", 1, TargetType.Self, StatusEffectType.Regen, "Regen", duration: 3, magnitude: 5));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Barrage", 2, TargetType.AllEnemies, new DamageEffect { Amount = 6 }));
-        }
+        // Band 2 (5)
+        AddCopies(deck, 2, () => CreateStatusCard("Iron Skin", 2, TargetType.Self, StatusEffectType.Protect, "Protect", duration: 3, magnitude: 4));
+        AddCopies(deck, 3, () => CreateCard("Chi Blast", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 9 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateStatusCard("Meditate", 1, TargetType.Self, StatusEffectType.Regen, "Regen", duration: 3, magnitude: 5));
-        }
+        // Band 3 (4)
+        AddCopies(deck, 4, () => CreateCard("Barrage", 2, TargetType.AllEnemies, new DamageEffect { Amount = 6 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateStatusCard("Iron Skin", 2, TargetType.Self, StatusEffectType.Protect, "Protect", duration: 3, magnitude: 4));
-        }
+        // Band 4 (3)
+        AddCopies(deck, 3, () => CreateCard("Combo Strike", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 18 }));
+
+        // Band 5 (2)
+        AddCopies(deck, 2, () => CreateCard("Dragon Kick", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 28 }));
 
         return deck;
     }
@@ -169,29 +156,34 @@ public class MatchSetup : MonoBehaviour
     {
         List<CardData> deck = new List<CardData>();
 
-        for (int i = 0; i < 4; i++)
-        {
-            deck.Add(CreateCard("Slash", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 8 }));
-        }
+        // Band 1 (6)
+        AddCopies(deck, 3, () => CreateCard("Slash", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 8 }));
+        AddCopies(deck, 3, () => CreateCard("Thrust", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 7 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Braver", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 16 }));
-        }
+        // Band 2 (5)
+        AddCopies(deck, 2, () => CreateStatusCard("Guard Stance", 1, TargetType.Self, StatusEffectType.Protect, "Protect", duration: 2, magnitude: 3));
+        AddCopies(deck, 3, () => CreateCard("Shield Bash", 1, TargetType.SingleEnemy, new DamageEffect { Amount = 9 }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Cross-Slash", 2, TargetType.SingleEnemy,
-                new DamageEffect { Amount = 10 },
-                new ApplyStatusEffectCard { EffectToApply = MakeStatus("Slow", StatusEffectType.Slow, duration: 2, magnitude: 2) }));
-        }
+        // Band 3 (4)
+        AddCopies(deck, 4, () => CreateCard("Cross-Slash", 2, TargetType.SingleEnemy,
+            new DamageEffect { Amount = 10 },
+            new ApplyStatusEffectCard { EffectToApply = MakeStatus("Slow", StatusEffectType.Slow, duration: 2, magnitude: 2) }));
 
-        for (int i = 0; i < 2; i++)
-        {
-            deck.Add(CreateCard("Limit Break", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 32 }));
-        }
+        // Band 4 (3)
+        AddCopies(deck, 3, () => CreateCard("Braver", 2, TargetType.SingleEnemy, new DamageEffect { Amount = 16 }));
+
+        // Band 5 (2)
+        AddCopies(deck, 2, () => CreateCard("Limit Break", 3, TargetType.SingleEnemy, new DamageEffect { Amount = 32 }));
 
         return deck;
+    }
+
+    private void AddCopies(List<CardData> deck, int count, System.Func<CardData> factory)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            deck.Add(factory());
+        }
     }
 
     private CardData CreateCard(string cardName, int cost, TargetType target, params CardEffect[] effects)

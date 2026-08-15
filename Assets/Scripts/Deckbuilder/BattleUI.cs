@@ -7,17 +7,19 @@ using UnityEngine.UI;
 public class BattleUI : MonoBehaviour
 {
     [SerializeField] private GameManager gameManager;
+    [SerializeField] private CardView cardViewPrefab;
+    [SerializeField] private CharacterView characterViewPrefab;
 
     private const int MAX_LOG_LINES = 8;
 
     private Font uiFont;
     private Text statusText;
-    private Text leftRosterText;
-    private Text rightRosterText;
     private Text logText;
     private Text cardDescriptionText;
     private Transform handContainer;
     private Transform targetContainer;
+    private Transform leftRosterContainer;
+    private Transform rightRosterContainer;
     private GameObject targetPanel;
     private GameObject matchEndPanel;
     private Text matchEndText;
@@ -30,6 +32,16 @@ public class BattleUI : MonoBehaviour
         if (gameManager == null)
         {
             gameManager = FindFirstObjectByType<GameManager>();
+        }
+
+        if (cardViewPrefab == null)
+        {
+            cardViewPrefab = Resources.Load<CardView>("Deckbuilder/CardView");
+        }
+
+        if (characterViewPrefab == null)
+        {
+            characterViewPrefab = Resources.Load<CharacterView>("Deckbuilder/CharacterView");
         }
 
         uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -107,8 +119,32 @@ public class BattleUI : MonoBehaviour
     {
         IReadOnlyList<Team> teams = gameManager.Teams;
 
-        leftRosterText.text = teams.Count > 0 ? BuildTeamRosterText(teams[0]) : string.Empty;
-        rightRosterText.text = teams.Count > 1 ? BuildTeamRosterText(teams[1]) : string.Empty;
+        RefreshTeamRoster(leftRosterContainer, teams.Count > 0 ? teams[0] : null);
+        RefreshTeamRoster(rightRosterContainer, teams.Count > 1 ? teams[1] : null);
+    }
+
+    private void RefreshTeamRoster(Transform container, Team team)
+    {
+        ClearChildren(container);
+
+        if (team == null)
+        {
+            return;
+        }
+
+        if (characterViewPrefab == null)
+        {
+            Text fallback = CreateText((RectTransform)container, TextAnchor.UpperLeft, 16,
+                Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            fallback.text = BuildTeamRosterText(team);
+            return;
+        }
+
+        foreach (Player player in team.Players)
+        {
+            CharacterView view = Instantiate(characterViewPrefab, container);
+            view.Setup(player, player == gameManager.CurrentPlayer);
+        }
     }
 
     private string BuildTeamRosterText(Team team)
@@ -139,10 +175,22 @@ public class BattleUI : MonoBehaviour
         foreach (CardData card in current.Deck.Hand)
         {
             CardData capturedCard = card;
-            Button button = CreateButton(handContainer, $"{card.CardName}\n({card.EnergyCost})");
-            button.interactable = current.CanPlay(card);
-            button.onClick.AddListener(() => OnCardClicked(capturedCard));
-            AddHoverDescription(button, capturedCard);
+            bool canPlay = current.CanPlay(card);
+
+            if (cardViewPrefab != null)
+            {
+                CardView view = Instantiate(cardViewPrefab, handContainer);
+                view.Setup(card, canPlay);
+                view.CardButton.onClick.AddListener(() => OnCardClicked(capturedCard));
+                AddHoverDescription(view.CardButton, capturedCard);
+            }
+            else
+            {
+                Button button = CreateButton(handContainer, $"{card.CardName}\n({card.EnergyCost})");
+                button.interactable = canPlay;
+                button.onClick.AddListener(() => OnCardClicked(capturedCard));
+                AddHoverDescription(button, capturedCard);
+            }
         }
 
         CreateButton(handContainer, "End Turn").onClick.AddListener(gameManager.EndCurrentTurn);
@@ -325,23 +373,27 @@ public class BattleUI : MonoBehaviour
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
             new Vector2(0f, -170f), new Vector2(440f, 40f));
 
-        leftRosterText = CreateText(canvasRect, TextAnchor.UpperLeft, 16,
+        // Team rosters as vertical stacks of character cards, opposite corners.
+        leftRosterContainer = CreateLayoutPanel(canvasRect, "LeftRoster", horizontal: false,
             new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(20f, -10f), new Vector2(300f, 280f));
+            new Vector2(20f, -10f), new Vector2(170f, 300f)).transform;
 
-        rightRosterText = CreateText(canvasRect, TextAnchor.UpperLeft, 16,
+        rightRosterContainer = CreateLayoutPanel(canvasRect, "RightRoster", horizontal: false,
             new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-            new Vector2(-20f, -10f), new Vector2(300f, 280f));
+            new Vector2(-20f, -10f), new Vector2(170f, 300f)).transform;
 
-        handContainer = CreateLayoutPanel(canvasRect, "HandPanel",
-            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 60f), new Vector2(0f, 100f)).transform;
+        // Bottom stack, tallest-first: hand (card-sized) at the very bottom, description above it, targets above that.
+        handContainer = CreateLayoutPanel(canvasRect, "HandPanel", horizontal: true,
+            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 100f), new Vector2(0f, 190f)).transform;
 
         cardDescriptionText = CreateText(canvasRect, TextAnchor.MiddleCenter, 16,
             new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f),
-            new Vector2(0f, 160f), new Vector2(0f, 80f));
+            new Vector2(0f, 240f), new Vector2(0f, 80f));
 
-        targetPanel = CreateLayoutPanel(canvasRect, "TargetPanel",
-            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 240f), new Vector2(0f, 60f));
+        targetPanel = CreateLayoutPanel(canvasRect, "TargetPanel", horizontal: true,
+            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 320f), new Vector2(0f, 60f));
         targetContainer = targetPanel.transform;
         targetPanel.SetActive(false);
 
@@ -381,23 +433,27 @@ public class BattleUI : MonoBehaviour
         return text;
     }
 
-    private GameObject CreateLayoutPanel(RectTransform parent, string name,
-        Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
+    private GameObject CreateLayoutPanel(RectTransform parent, string name, bool horizontal,
+        Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 sizeDelta)
     {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        GameObject go = new GameObject(name, typeof(RectTransform));
         RectTransform rect = go.GetComponent<RectTransform>();
         rect.SetParent(parent, false);
         rect.anchorMin = anchorMin;
         rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
         rect.anchoredPosition = anchoredPosition;
         rect.sizeDelta = sizeDelta;
 
-        HorizontalLayoutGroup layout = go.GetComponent<HorizontalLayoutGroup>();
+        HorizontalOrVerticalLayoutGroup layout = horizontal
+            ? (HorizontalOrVerticalLayoutGroup)go.AddComponent<HorizontalLayoutGroup>()
+            : go.AddComponent<VerticalLayoutGroup>();
+
         layout.childControlWidth = false;
         layout.childControlHeight = false;
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
-        layout.spacing = 10f;
+        layout.spacing = 8f;
         layout.childAlignment = TextAnchor.MiddleCenter;
 
         return go;
