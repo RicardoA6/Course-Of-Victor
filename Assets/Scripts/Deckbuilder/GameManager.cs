@@ -81,6 +81,8 @@ public class GameManager : MonoBehaviour
             case TargetType.SingleAlly:
             case TargetType.AllAllies:
                 return allies;
+            case TargetType.DeadAlly:
+                return ownTeam.Players.Where(p => !p.IsAlive).ToList();
             case TargetType.SingleEnemy:
             case TargetType.AllEnemies:
             default:
@@ -90,7 +92,9 @@ public class GameManager : MonoBehaviour
 
     public bool RequiresManualTarget(CardData card)
     {
-        return card.Target == TargetType.SingleEnemy || card.Target == TargetType.SingleAlly;
+        return card.Target == TargetType.SingleEnemy
+            || card.Target == TargetType.SingleAlly
+            || card.Target == TargetType.DeadAlly;
     }
 
     public bool SubmitCardPlay(CardData card, Player manualTarget)

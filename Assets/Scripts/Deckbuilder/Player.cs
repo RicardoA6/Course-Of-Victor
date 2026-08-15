@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class Player
@@ -77,7 +78,43 @@ public class Player
 
     public void TakeDamage(int amount)
     {
+        amount = AbsorbWithShell(amount);
+        amount = ReduceWithProtect(amount);
         CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
+    }
+
+    private int AbsorbWithShell(int amount)
+    {
+        if (amount <= 0)
+        {
+            return amount;
+        }
+
+        StatusEffect shell = ActiveStatusEffects.FirstOrDefault(e => e.EffectType == StatusEffectType.Shell);
+        if (shell == null)
+        {
+            return amount;
+        }
+
+        int absorbed = Mathf.Min(shell.Magnitude, amount);
+        shell.Magnitude -= absorbed;
+        amount -= absorbed;
+
+        if (shell.Magnitude <= 0)
+        {
+            ActiveStatusEffects.Remove(shell);
+        }
+
+        return amount;
+    }
+
+    private int ReduceWithProtect(int amount)
+    {
+        int reduction = ActiveStatusEffects
+            .Where(e => e.EffectType == StatusEffectType.Protect)
+            .Sum(e => e.Magnitude);
+
+        return Mathf.Max(0, amount - reduction);
     }
 
     public void Heal(int amount)

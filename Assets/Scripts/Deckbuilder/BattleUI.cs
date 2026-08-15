@@ -12,8 +12,10 @@ public class BattleUI : MonoBehaviour
 
     private Font uiFont;
     private Text statusText;
-    private Text rosterText;
+    private Text leftRosterText;
+    private Text rightRosterText;
     private Text logText;
+    private Text cardDescriptionText;
     private Transform handContainer;
     private Transform targetContainer;
     private GameObject targetPanel;
@@ -103,21 +105,25 @@ public class BattleUI : MonoBehaviour
 
     private void RefreshRoster()
     {
+        IReadOnlyList<Team> teams = gameManager.Teams;
+
+        leftRosterText.text = teams.Count > 0 ? BuildTeamRosterText(teams[0]) : string.Empty;
+        rightRosterText.text = teams.Count > 1 ? BuildTeamRosterText(teams[1]) : string.Empty;
+    }
+
+    private string BuildTeamRosterText(Team team)
+    {
         StringBuilder builder = new StringBuilder();
+        builder.AppendLine(team.TeamName + (team.IsDefeated ? " (defeated)" : string.Empty));
 
-        foreach (Team team in gameManager.Teams)
+        foreach (Player player in team.Players)
         {
-            builder.AppendLine(team.TeamName + (team.IsDefeated ? " (defeated)" : string.Empty));
-
-            foreach (Player player in team.Players)
-            {
-                string marker = player == gameManager.CurrentPlayer ? "> " : "   ";
-                string status = player.IsAlive ? $"HP {player.CurrentHealth}/{player.MaxHealth}" : "DEFEATED";
-                builder.AppendLine($"{marker}{player.PlayerName}: {status}");
-            }
+            string marker = player == gameManager.CurrentPlayer ? "> " : "   ";
+            string status = player.IsAlive ? $"HP {player.CurrentHealth}/{player.MaxHealth}" : "DEFEATED";
+            builder.AppendLine($"{marker}{player.PlayerName}: {status}");
         }
 
-        rosterText.text = builder.ToString();
+        return builder.ToString();
     }
 
     private void RefreshHand()
@@ -136,9 +142,86 @@ public class BattleUI : MonoBehaviour
             Button button = CreateButton(handContainer, $"{card.CardName}\n({card.EnergyCost})");
             button.interactable = current.CanPlay(card);
             button.onClick.AddListener(() => OnCardClicked(capturedCard));
+            AddHoverDescription(button, capturedCard);
         }
 
         CreateButton(handContainer, "End Turn").onClick.AddListener(gameManager.EndCurrentTurn);
+        cardDescriptionText.text = string.Empty;
+    }
+
+    private void AddHoverDescription(Button button, CardData card)
+    {
+        EventTrigger trigger = button.gameObject.AddComponent<EventTrigger>();
+
+        EventTrigger.Entry enterEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+        enterEntry.callback.AddListener(_ => cardDescriptionText.text = BuildCardDescription(card));
+        trigger.triggers.Add(enterEntry);
+
+        EventTrigger.Entry exitEntry = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+        exitEntry.callback.AddListener(_ => cardDescriptionText.text = string.Empty);
+        trigger.triggers.Add(exitEntry);
+    }
+
+    private string BuildCardDescription(CardData card)
+    {
+        List<string> effectDescriptions = new List<string>();
+        foreach (CardEffect effect in card.Effects)
+        {
+            effectDescriptions.Add(DescribeEffect(effect));
+        }
+
+        string effectsText = string.Join("  |  ", effectDescriptions);
+        return $"{card.CardName} ({card.EnergyCost} energy) — Target: {DescribeTarget(card.Target)}\n{effectsText}";
+    }
+
+    private string DescribeEffect(CardEffect effect)
+    {
+        switch (effect)
+        {
+            case DamageEffect damage:
+                return $"Deal {damage.Amount} damage";
+            case HealEffect heal:
+                return heal.Amount >= 999 ? "Fully heal HP" : $"Heal {heal.Amount} HP";
+            case DrainEnergyEffect drain:
+                return $"Drain {drain.Amount} energy";
+            case ApplyStatusEffectCard status:
+                return DescribeStatus(status.EffectToApply);
+            default:
+                return effect.GetType().Name;
+        }
+    }
+
+    private string DescribeStatus(StatusEffect status)
+    {
+        switch (status.EffectType)
+        {
+            case StatusEffectType.Regen:
+                return $"Regen: heal {status.Magnitude} HP/turn for {status.Duration} turns";
+            case StatusEffectType.Protect:
+                return $"Protect: reduce damage taken by {status.Magnitude} for {status.Duration} turns";
+            case StatusEffectType.Shell:
+                return $"Shell: absorb the next {status.Magnitude} damage";
+            case StatusEffectType.Slow:
+                return $"Slow: -{status.Magnitude} energy at turn start for {status.Duration} turns";
+            case StatusEffectType.Haste:
+                return $"Haste: +{status.Magnitude} energy at turn start for {status.Duration} turns";
+            default:
+                return status.EffectName;
+        }
+    }
+
+    private string DescribeTarget(TargetType target)
+    {
+        switch (target)
+        {
+            case TargetType.SingleEnemy: return "Single Enemy";
+            case TargetType.AllEnemies: return "All Enemies";
+            case TargetType.Self: return "Self";
+            case TargetType.SingleAlly: return "Single Ally";
+            case TargetType.AllAllies: return "All Allies";
+            case TargetType.DeadAlly: return "Downed Ally";
+            default: return target.ToString();
+        }
     }
 
     // ---- Card / target selection ----
@@ -233,23 +316,32 @@ public class BattleUI : MonoBehaviour
 
         RectTransform canvasRect = canvasGO.GetComponent<RectTransform>();
 
-        statusText = CreateText(canvasRect, TextAnchor.MiddleCenter, 22,
-            new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f),
-            new Vector2(0f, -10f), new Vector2(0f, 40f));
-
-        rosterText = CreateText(canvasRect, TextAnchor.UpperLeft, 16,
-            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(20f, -70f), new Vector2(300f, 280f));
-
+        // Top-center column: round log sits directly above the current-turn status line.
         logText = CreateText(canvasRect, TextAnchor.UpperLeft, 14,
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -10f), new Vector2(440f, 150f));
+
+        statusText = CreateText(canvasRect, TextAnchor.MiddleCenter, 22,
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -170f), new Vector2(440f, 40f));
+
+        leftRosterText = CreateText(canvasRect, TextAnchor.UpperLeft, 16,
+            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(20f, -10f), new Vector2(300f, 280f));
+
+        rightRosterText = CreateText(canvasRect, TextAnchor.UpperLeft, 16,
             new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-            new Vector2(-20f, -70f), new Vector2(300f, 280f));
+            new Vector2(-20f, -10f), new Vector2(300f, 280f));
 
         handContainer = CreateLayoutPanel(canvasRect, "HandPanel",
             new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 60f), new Vector2(0f, 100f)).transform;
 
+        cardDescriptionText = CreateText(canvasRect, TextAnchor.MiddleCenter, 16,
+            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 160f), new Vector2(0f, 80f));
+
         targetPanel = CreateLayoutPanel(canvasRect, "TargetPanel",
-            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 170f), new Vector2(0f, 60f));
+            new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 240f), new Vector2(0f, 60f));
         targetContainer = targetPanel.transform;
         targetPanel.SetActive(false);
 

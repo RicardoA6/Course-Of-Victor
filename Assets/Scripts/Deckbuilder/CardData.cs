@@ -7,7 +7,8 @@ public enum TargetType
     AllEnemies,
     Self,
     SingleAlly,
-    AllAllies
+    AllAllies,
+    DeadAlly
 }
 
 [CreateAssetMenu(menuName = "Deckbuilder/Card")]

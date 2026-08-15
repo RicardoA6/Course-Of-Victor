@@ -29,6 +29,19 @@ public class HealEffect : CardEffect
 }
 
 [System.Serializable]
+public class DrainEnergyEffect : CardEffect
+{
+    public int Amount;
+
+    public override void Apply(Player source, Player target)
+    {
+        int drained = Mathf.Min(Amount, target.CurrentEnergy);
+        target.CurrentEnergy -= drained;
+        source.CurrentEnergy += drained;
+    }
+}
+
+[System.Serializable]
 public class ApplyStatusEffectCard : CardEffect
 {
     public StatusEffect EffectToApply;
